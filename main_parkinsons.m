@@ -1,65 +1,45 @@
 %% main_parkinsons
 %file to load data, perform machine learning 
+%don't need to use this code once the files are saved
 kav001A = struct('Tentries_acc', Tentries_acc, 'Tentries_gyro', Tentries_gyro,... 
 'Tentries_orien', Tentries_orien);
 
 save('kav001A', 'kav001A');
 
-%% loading and plotting data
+%% loading data
 %each table has the time stamp as the last row, so we just plot
 %the data from the first entry to end-1.
+%for each file loaded; change name when extracting tables from saved mat
+%structures
+data_acc = table2array(kav031B.Tentries_acc);
+data_acc = data_acc(1:(end-1),:); %%%
+data_gyro = table2array(kav031B.Tentries_gyro);
+data_gyro = data_gyro(1:(end-1), :);
+data_orien = table2array(kav031B.Tentries_orien);
+data_orien = data_orien(1:(end-1), :);
 
-%% Load data from mat files 
-%1) have to open mat files
-%2) separate the data from the structure
+%reformat time stamp
 
-data_acc = table2array(kav001A.Tentries_acc);
-kav001A_acc = data_acc(1:(end-1),:); %%%
-data_gyro = table2array(kav001A.Tentries_gyro);
-kav001A_gyro = data_gyro(1:(end-1), :);
-data_orien = table2array(kav001A.Tentries_orien);
-kav001A_orien = data_orien(1:(end-1), :);
+%% interpolation
+%uses interpolate_data function
+%this is so all the timestamps for a patient are the same 
+matrix2 = interpolate_data(data_acc, data_gyro, data_orien);
 
-
-%% plot data
-%first column is a time stamp
-figure;
-plot(data_acc_nts(:, 1), data_acc_nts(:, 2));
-% hold on;
-% plot(data_acc_nts(:, 1), data_acc_nts(:, 3)); plot(data_acc_nts(:, 1), data_acc_nts(:, 4));
-title("Raw Accelerometer Data");
-xlabel("m/s^2");
-ylabel("Time Stamp (ms)");
-legend('x', 'y', 'z');
-hold off;
-
+%% plot data using the plot_data function
+%can use signal analyzer for now
 %% 
-figure(2);
-plot(data_gyro_nts(:, 1), data_gyro_nts(:, 2));hold on;
-plot(data_gyro_nts(:, 1), data_gyro_nts(:, 3)); plot(data_gyro_nts(:, 1), data_gyro_nts(:, 4));
-title("Raw Gyroscope Data");
-xlabel("rad/sec");
-ylabel("Time Stamp (ms)");
-legend('x', 'y', 'z');
-hold off;
 
-figure(3);
-plot(data_orien_nts(:, 1), data_orien_nts(:, 2));hold on;
-plot(data_orien_nts(:, 1), data_orien_nts(:, 3)); plot(data_orien_nts(:, 1), data_orien_nts(:, 4));
-title("Raw Orientation Data");
-xlabel("");
-ylabel("Time Stamp (ms)");
-legend('x', 'y', 'z');
-hold off;
+plotter = Plotter_p();
 
-%% plot spectrogram 
-plotter = Plotter_p(); %create Plotter object, in folder 5-Plotting
+plotter.plotSpectrogram(matrix1(:, 2), "Raw Acc Data", "Sample", "Frequency");
 
-% Explore Frequency Domain
-%our data is in m/s^2 and deg/sec, how to make spectogram
-plotter.plotSpectrogram(kav001A_acc(:,2),'Spectrogram','Sample','Frequency [Hz]');
-plotter.plotSpectrogram(kav031B_acc(:,2),'Spectrogram','Sample','Frequency [Hz]');
-
+% [sp, fp, tp] = pspectrum(matrix(:, 2), matrix(:, 1), 'spectrogram');
+% figure;
+% mesh(tp, fp, sp);
+% % view(-15, 60);
+% xlabel('Time (ms)');
+% ylabel('Frequency (Hz)');
+% 
 %% Filter 
 %try three different filters: 
 
@@ -94,8 +74,7 @@ end
 
 %take out columns 7-11 for reconstruction
 wtrec = zeros(size(wt));
-wtrec(1:6, :) = wt(1:6, :);
-
+wtrec(1:5, :) = wt(1:5, :);
 modified_signal = imodwt(wtrec);
 figure(5);
 plot(kav001A_acc(:, 2)); hold on;
