@@ -1,47 +1,83 @@
 %% main_parkinsons
-%file to load data, perform machine learning 
-%don't need to use this code once the files are saved
-kav001A = struct('Tentries_acc', Tentries_acc, 'Tentries_gyro', Tentries_gyro,... 
-'Tentries_orien', Tentries_orien);
+all_subjects = ["001A", "002A","004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A", "031B", "079B", "111B", "211B", "121B", "211B"]';
 
-save('kav001A', 'kav001A');
-%% 
-PD = ["001A", "002A","004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A"]';
-non_PD = ["031B", "079B", "111B", "211B", "121B", "211B"]';
+for subject = 1:2
+    load(strcat('kav',all_subjects(subject),'_acc.mat'));
+    load(strcat('kav',all_subjects(subject),'_gyro.mat'));
+    load(strcat('kav',all_subjects(subject),'_orien.mat'));
+    Tentries_acc = table2array(Tentries_acc); Tentries_gyro = table2array(Tentries_gyro); Tentries_orien = table2array(Tentries_orien);
+    matrix = interpolate_data(Tentries_acc(1:end-1, :), Tentries_gyro(1:end-1, :), Tentries_orien(1:end-1, :));
+    save(strcat('kav', all_subjects(subject), '_main.mat'), 'matrix');
+end
+%figure;
+    
+%% apply low pass filter to smooth data
+
+
+% plot(data_acc(:, 1) - data_acc(1, 1), data_acc(:, 2));
+% hold on;
+cutoff = 1/100; %high cutoff -> more inclusive 
+[b,a] = butter(1,cutoff); %filter params for cutoff of 0.2
+data_acc_sm = zeros(size(data_acc));
+data_acc_sm(:,2:4) = filter(b,a,data_acc(:,2:4)); %applying filter to all accel data
+
+
+%subplot(2, 8, subject);
+plot(data_acc(:, 1) - data_acc(1, 1), data_acc_sm(:, 2));
+%     plotter.plotSignalBig(data_acc_sm(:,2),'Filtered','Sample','Acceleration [g]');
+
+%end
+
+%%
+PD = all_subjects(1:10, :);
+non_PD = all_subjects(11:end, :);
+
 for subject = 1:length(PD)
+    %accelerometer only
     load(strcat('kav',PD(subject),'_acc.mat'));
+    data_acc = table2array(Tentries_orien);
 %     load(strcat('kav',extractBefore(patients(patient), 4),'_gyro.mat'));
-%     load(strcat('kav',extractBefore(patients(patient), 4),'_orien.mat'));
-    %load(strcat('kav',patients(patient),'.mat'))
-    data_acc = table2array(Tentries_acc);
+%     load(strcat('kav',extractBefore(patients(patient), 4),'_orien.mat')); 
 %     data_gyro = table2array(Tentries_gyro);
-
-    %plot spectrograms
+    data_acc = data_acc(1:end-1, :); %remove time stamp
+    
+    %plot raw signal
     figure(1);
     subplot(2, 5, subject);
-    frequencyLimits = [0 100]/pi; %Normalized frequency (*pi rad/sample)
-    leakage = 0.2;
-    overlapPercent = 50;
-    
-    pspectrum(data_acc(:, 2), 'spectrogram','FrequencyLimits',frequencyLimits, ...
-    'Leakage',leakage, 'OverlapPercent',overlapPercent);
-    title('Spectrogram');
-
-    % fourier transform 
-    Y = fft(data_acc(:, 2));
-    L = size(data_acc(:, 2), 1);
-    %Compute the two-sided spectrum P2. Then compute the single-sided spectrum P1 based on P2 and the even-valued signal length L.
-    P2 = abs(Y);
-    P1 = P2(1:L/2+1);
-    %Define the frequency domain f and plot the single-sided amplitude spectrum P1. The amplitudes are not exactly at 0.7 and 1, as expected, because of the added noise. On average, longer signals produce better frequency approximations.
-
-    f = (1000/15)*[0:(L/2)]/L;
-    figure(2);
-    subplot(2, 5, subject);
-    plot(f,P1);
-    title('Single-Sided Amplitude Spectrum of X(t)')
-    xlabel('f (Hz)')
-    ylabel('|P1(f)|')
+    plot(data_acc(:, 1) - data_acc(1,1), data_acc(:, 2)); hold on;
+    %apply filter to take out noise
+    cutoff = 1/100; %high cutoff -> more inclusive 
+    [b,a] = butter(1,cutoff); %filter params for cutoff of 0.2
+    data_acc_sm = zeros(size(data_acc));
+    data_acc_sm(:,2:4) = filter(b,a,data_acc(:,2:4)); %applying filter to all accel data
+    %plot filtered signal
+    plot(data_acc(:, 1) - data_acc(1,1), data_acc_sm(:, 2));
+%     %plot spectrograms
+%     figure(2);
+%     subplot(2, 5, subject);
+%     frequencyLimits = [0 100]/pi; %Normalized frequency (*pi rad/sample)
+%     leakage = 0.2;
+%     overlapPercent = 50;
+%     
+%     pspectrum(data_acc(:, 2), 'spectrogram','FrequencyLimits',frequencyLimits, ...
+%     'Leakage',leakage, 'OverlapPercent',overlapPercent);
+%     title('Spectrogram');
+% 
+%     % fourier transform 
+%     Y = fft(data_acc(:, 2));
+%     L = size(data_acc(:, 2), 1);
+%     %Compute the two-sided spectrum P2. Then compute the single-sided spectrum P1 based on P2 and the even-valued signal length L.
+%     P2 = abs(Y);
+%     P1 = P2(1:L/2+1);
+%     %Define the frequency domain f and plot the single-sided amplitude spectrum P1. The amplitudes are not exactly at 0.7 and 1, as expected, because of the added noise. On average, longer signals produce better frequency approximations.
+% 
+%     f = (1000/15)*[0:(L/2)]/L;
+%     figure(2);
+%     subplot(2, 5, subject);
+%     plot(f,P1);
+%     title('Single-Sided Amplitude Spectrum of X(t)')
+%     xlabel('f (Hz)')
+%     ylabel('|P1(f)|')
 end
 
 for subject = 1:length(non_PD)
@@ -51,33 +87,45 @@ for subject = 1:length(non_PD)
     %load(strcat('kav',patients(patient),'.mat'))
     data_acc = table2array(Tentries_acc);
 %     data_gyro = table2array(Tentries_gyro);
-
-    %plot spectrograms
-    figure(3);
+    data_acc = data_acc(1:end-1, :);
+    %plot raw signal
+    figure(2);
     subplot(2, 3, subject);
-    frequencyLimits = [0 100]/pi; %Normalized frequency (*pi rad/sample)
-    leakage = 0.2;
-    overlapPercent = 50;
-    
-    pspectrum(data_acc(:, 2), 'spectrogram','FrequencyLimits',frequencyLimits, ...
-    'Leakage',leakage, 'OverlapPercent',overlapPercent);
-    title('Spectrogram');
+    plot(data_acc(:, 1) - data_acc(1,1), data_acc(:, 2)); hold on;
+    %apply filter to take out noise
+    cutoff = 1/100; %high cutoff -> more inclusive 
+    [b,a] = butter(1,cutoff); %filter params for cutoff of 0.2
+    data_acc_sm = zeros(size(data_acc));
+    data_acc_sm(:,2:4) = filter(b,a,data_acc(:,2:4)); %applying filter to all accel data
+    %plot filtered signal
+    plot(data_acc(:, 1) - data_acc(1,1), data_acc_sm(:, 2));
 
-    % fourier transform 
-    Y = fft(data_acc(:, 2));
-    L = size(data_acc(:, 2), 1);
-    %Compute the two-sided spectrum P2. Then compute the single-sided spectrum P1 based on P2 and the even-valued signal length L.
-    P2 = abs(Y);
-    P1 = P2(1:L/2+1);
-    %Define the frequency domain f and plot the single-sided amplitude spectrum P1. The amplitudes are not exactly at 0.7 and 1, as expected, because of the added noise. On average, longer signals produce better frequency approximations.
-
-    f = (1000/15)*[0:(L/2)]/L;
-    figure(4);
-    subplot(2, 3, subject);
-    plot(f,P1);
-    title('Single-Sided Amplitude Spectrum of X(t)')
-    xlabel('f (Hz)')
-    ylabel('|P1(f)|')
+%     %plot spectrograms
+%     figure(3);
+%     subplot(2, 3, subject);
+%     frequencyLimits = [0 100]/pi; %Normalized frequency (*pi rad/sample)
+%     leakage = 0.2;
+%     overlapPercent = 50;
+%     
+%     pspectrum(data_acc(:, 2), 'spectrogram','FrequencyLimits',frequencyLimits, ...
+%     'Leakage',leakage, 'OverlapPercent',overlapPercent);
+%     title('Spectrogram');
+% 
+%     % fourier transform 
+%     Y = fft(data_acc(:, 2));
+%     L = size(data_acc(:, 2), 1);
+%     %Compute the two-sided spectrum P2. Then compute the single-sided spectrum P1 based on P2 and the even-valued signal length L.
+%     P2 = abs(Y);
+%     P1 = P2(1:L/2+1);
+%     %Define the frequency domain f and plot the single-sided amplitude spectrum P1. The amplitudes are not exactly at 0.7 and 1, as expected, because of the added noise. On average, longer signals produce better frequency approximations.
+% 
+%     f = (1000/15)*[0:(L/2)]/L;
+%     figure(4);
+%     subplot(2, 3, subject);
+%     plot(f,P1);
+%     title('Single-Sided Amplitude Spectrum of X(t)')
+%     xlabel('f (Hz)')
+%     ylabel('|P1(f)|')
 end
 
 %% interpolation (ignore this for now)
