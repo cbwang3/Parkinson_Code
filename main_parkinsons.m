@@ -3,9 +3,9 @@
 
 %% main_parkinsons
 %Nx7 matrices, saved by ID
-all_subjects = ["001A", "002A","004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A", "031B", "079B", "111B", "211B", "121B", "221B"]';
+all_subjects = ["001A", "002A","004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A",  "031B", "079B", "111B", "211B", "121B", "221B"]';
 
-%%
+%% loading data, only have to use once
 for subject = 1:length(all_subjects)
     load(strcat('kav',extractBefore(all_subjects(subject),4),'_acc.mat'));
     load(strcat('kav',extractBefore(all_subjects(subject),4),'_gyro.mat'));
@@ -17,6 +17,7 @@ end
 %figure;
 
 %%
+
 clf;
 for subject = 1:length(all_subjects)
     id = char(all_subjects(subject));
@@ -90,9 +91,22 @@ for subject = 1:length(all_subjects)
     end
 
 
-%% peak detection
 
-
+%% peak detection - do we also do this on gyro? 
+    %Energy calculation (e.g. for peak detection)
+    energy_acc = matrix(:,2).^2 + matrix(:,3).^2 + matrix(:,4).^2;
+    energy_gyro = matrix(:,5).^2 + matrix(:, 6).^2 + matrix(:, 7).^2;
+    %plot energy
+    if id(4) == 'A'
+        figure(7); set(gcf, 'name', 'PD Energy'); subplot(2, 5, subject);subplot(2, 5, subject);
+        plot(matrix(:, 1), energy_acc);
+        title('Energy, Acceleration g^2');
+    else
+        figure(8); set(gcf, 'name', 'non-PD Energy'); 
+        subplot(2, 3, subject-10);
+        plot(matrix(:, 1), energy_acc);
+        title('Energy, Acceleration g^2');
+    end
 end
 
 
