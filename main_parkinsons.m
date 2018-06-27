@@ -3,9 +3,9 @@
 
 %% main_parkinsons
 %Nx7 matrices, saved by ID
-all_subjects = ["001A", "002A","004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A", "031B", "079B", "111B", "211B", "121B", "221B"]';
+all_subjects = ["001A", "002A","004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A",  "031B", "079B", "111B", "211B", "121B", "221B"]';
 
-%%
+%% loading data, only have to use once
 for subject = 1:length(all_subjects)
     load(strcat('kav',all_subjects(subject),'_acc.mat'));
     load(strcat('kav',all_subjects(subject),'_gyro.mat'));
@@ -17,6 +17,7 @@ end
 %figure;
 
 %%
+
 clf;
 for subject = 1:length(all_subjects)
     id = char(all_subjects(subject));
@@ -29,17 +30,19 @@ for subject = 1:length(all_subjects)
     [b,a] = butter(1,low_cutoff, 'low'); %filter params for cutoff of 0.2
     data_acc_sm = zeros(size(matrix));
     data_acc_sm(:,2:end) = filter(b,a,matrix(: ,2:end)); %applying filter to all accel data
-%     %plot parkinsons vs non parkinsons 
-%     if id(4) == 'A'
-%         figure(1); subplot(2, 5, subject);
-%         plot(matrix(:, 1),matrix(:, 2),'b',matrix(:,1),data_acc_sm(:, 2),'r');        
-%         title("Raw and Filtered Signals");
-%     else
-%         figure(2); subplot(2, 3, subject-10);
-%         plot(matrix(:, 1),matrix(:, 2),'b',matrix(:,1),data_acc_sm(:, 2),'r');        
-%         title("Raw and Filtered Signals");
-%     end
-%     matrix(:, 2:end) = data_acc_sm(:, 2:end);
+    %plot parkinsons vs non parkinsons 
+    if id(4) == 'A'
+        figure(1); set(gcf, 'name', 'PD Raw and Filtered Signals');
+        subplot(2, 5, subject);
+        plot(matrix(:, 1),matrix(:, 2),'b',matrix(:,1),data_acc_sm(:, 2),'r');        
+        title(strcat('kav',all_subjects(subject)));
+    else
+        figure(2); set(gcf, 'name', 'non-PD Raw and Filtered Signals');
+        subplot(2, 3, subject-10);
+        plot(matrix(:, 1),matrix(:, 2),'b',matrix(:,1),data_acc_sm(:, 2),'r');        
+        title(strcat('kav',all_subjects(subject)));
+    end
+    matrix(:, 2:end) = data_acc_sm(:, 2:end);
 % %% spectrograms
 %     %plot spectrograms
 %     frequencyLimits = [0 100]/pi; %Normalized frequency (*pi rad/sample)
@@ -47,12 +50,14 @@ for subject = 1:length(all_subjects)
 %     overlapPercent = 50;
 %     
 %     if id(4) == 'A'
-%         figure(3); subplot(2, 5, subject);
+%         figure(3); set(gcf, 'name', 'PD Spectrogram'); 
+%         subplot(2, 5, subject);
 %         pspectrum(data_acc_sm(:, 2), 'spectrogram','FrequencyLimits',frequencyLimits, ...
 %         'Leakage',leakage, 'OverlapPercent',overlapPercent);
 %         title('Spectrogram');
 %     else
-%         figure(4); subplot(2, 3, subject-10);
+%         figure(4); set(gcf, 'name', 'non-PD Spectrogram'); 
+%         subplot(2, 3, subject-10);
 %         pspectrum(data_acc_sm(:, 2), 'spectrogram','FrequencyLimits',frequencyLimits, ...
 %         'Leakage',leakage, 'OverlapPercent',overlapPercent);
 %         title('Spectrogram');
@@ -68,20 +73,37 @@ for subject = 1:length(all_subjects)
 %     f = (1000/15)*[0:(L/2)]/L;
 %     
 %     if id(4) == 'A'
-%         figure(5); subplot(2, 5, subject);
+%         figure(5); set(gcf, 'name', 'PD Spectrum'); subplot(2, 5, subject);
 %         plot(f,P1);
-%         title('Single-Sided Amplitude Spectrum of X(t)');
+%         title('PD Single-Sided Amplitude Spectrum of X(t)');
 %         xlabel('f (Hz)'); ylabel('|P1(f)|');
 %     else
-%         figure(6); subplot(2, 3, subject-10);
+%         figure(6); set(gcf, 'name', 'non-PD Spectrum'); subplot(2, 5, subject);
+%         subplot(2, 3, subject-10);
 %         plot(f,P1);
-%         title('Single-Sided Amplitude Spectrum of X(t)');
+%         title('non-PD Single-Sided Amplitude Spectrum of X(t)');
 %         xlabel('f (Hz)'); ylabel('|P1(f)|');
 %     end
 
 
-%% peak detection
+%% peak detection - do we also do this on gyro? 
+    %Energy calculation (e.g. for peak detection)
+    energy_acc = matrix(:,2).^2 + matrix(:,3).^2 + matrix(:,4).^2;
+    energy_gyro = matrix(:,5).^2 + matrix(:, 6).^2 + matrix(:, 7).^2;
+    %plot energy
+    if id(4) == 'A'
+        figure(7); set(gcf, 'name', 'PD Energy'); subplot(2, 5, subject);subplot(2, 5, subject);
+        plot(matrix(:, 1), energy_acc);
+        title('Energy, Acceleration g^2');
+    else
+        figure(8); set(gcf, 'name', 'non-PD Energy'); 
+        subplot(2, 3, subject-10);
+        plot(matrix(:, 1), energy_acc);
+        title('Energy, Acceleration g^2');
+    end
 
+    
+    
 end
 
 
