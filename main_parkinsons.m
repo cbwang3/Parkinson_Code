@@ -102,6 +102,7 @@ for subject = 1:length(all_subjects)
     wtrec = zeros(size(wt));
     wtrec(5:10, :) = wt(5:10, :);
     modified_signal = imodwt(wtrec);    
+    maxpeak = max(modified_signal);
 
     if id(4) == 'A'
         figure(7); set(gcf, 'name', 'Reconstructed Wavelet');
@@ -117,14 +118,21 @@ for subject = 1:length(all_subjects)
 % 
 %% peak detection - energy or x 
 %Energy calculation (e.g. for peak detection)
-%     x_plot = matrix(:, 2);
-%     [peaks, peakLocInds] = findpeaks(x_plot, 'minPeakHeight', 2, 'minPeakDistance', 30);
-%     time_stamps = matrix(:, 1);
-%     figure;
-%     plot(matrix(:, 1), x_plot);
-%     hold on;
-%     peakLocs = time_stamps(peakLocInds);
-%     plot(peakLocs, peaks, 'r.');
+
+    for peakheight = maxpeak:-0.1:0
+        x_plot = matrix(:, 2);
+        [peaks, peakLocInds] = findpeaks(x_plot, 'minPeakHeight', peakheight, 'minPeakDistance', 30);
+        if length(peaks)>=20
+            break
+        end
+    end
+    
+    time_stamps = matrix(:, 1);
+    figure;
+    plot(matrix(:, 1), x_plot);
+    hold on;
+    peakLocs = time_stamps(peakLocInds);
+    plot(peakLocs, peaks, 'r.');
 
     energy_acc = matrix(:,2).^2 + matrix(:,3).^2 + matrix(:,4).^2;
     
