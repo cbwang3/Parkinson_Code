@@ -43,7 +43,6 @@ for subject = 1:length(all_subjects)
 %         title(strcat('kav',all_subjects(subject)));
 %     end
     matrix(:, 2:end) = data_acc_sm(:, 2:end);
-
 %{
 %% spectrograms
     %plot spectrograms
@@ -64,8 +63,6 @@ for subject = 1:length(all_subjects)
         'Leakage',leakage, 'OverlapPercent',overlapPercent);
         title('Spectrogram');
     end
-
-
 %% fourier transform
  % fourier transform 
     Y = fft(matrix(:, 2));
@@ -87,9 +84,7 @@ for subject = 1:length(all_subjects)
         title('non-PD Single-Sided Amplitude Spectrum of X(t)');
         xlabel('f (Hz)'); ylabel('|P1(f)|');
     end
-    
 %}
-
 %% wavelet transformation - for easier detection of peaks
     wt = modwt(matrix(:, 2));
 %     figure;
@@ -102,8 +97,7 @@ for subject = 1:length(all_subjects)
     wtrec = zeros(size(wt));
     wtrec(5:10, :) = wt(5:10, :);
     modified_signal = imodwt(wtrec);    
-    maxpeak = max(modified_signal);
-
+% 
     if id(4) == 'A'
         figure(7); set(gcf, 'name', 'Reconstructed Wavelet');
         subplot(2, 5, subject);
@@ -115,14 +109,14 @@ for subject = 1:length(all_subjects)
         plot(matrix(:, 1), modified_signal); hold on;
         title(strcat('kav',all_subjects(subject)));
     end
-% 
-%% peak detection - energy or x 
-%Energy calculation (e.g. for peak detection)
 
+%% peak detection - energy or x 
+    maxpeak = max(modified_signal);
     for peakheight = maxpeak:-0.1:0
         x_plot = matrix(:, 2);
         [peaks, peakLocInds] = findpeaks(x_plot, 'minPeakHeight', peakheight, 'minPeakDistance', 30);
         if length(peaks)>=20
+            length(peaks)
             break
         end
     end
@@ -134,8 +128,7 @@ for subject = 1:length(all_subjects)
     peakLocs = time_stamps(peakLocInds);
     plot(peakLocs, peaks, 'r.');
 
-    energy_acc = matrix(:,2).^2 + matrix(:,3).^2 + matrix(:,4).^2;
-    
+    %detect positive peaks
     [peaks, peakLocInds] = findpeaks(modified_signal, 'minPeakHeight', 0.6, 'minPeakDistance', 30);
     time_stamps = matrix(:, 1);
     peakLocs = time_stamps(peakLocInds);
@@ -158,32 +151,103 @@ for subject = 1:length(all_subjects)
         plot(peakLocs, peaks, 'r.'); 
         hold on; plot(neg_peakLocs, neg_peaks, 'k.');
     end
-    
-%     plot(matrix(:, 1), energy_acc);
-%     hold on;
-%     peakLocs = time_stamps(peakLocInds);
-%     plot(peakLocs, peaks, 'r.');
-
 
 %% segmentation
+% loop to calculate the distances of the negative peaks from each positve
+%peak
+%timestamps: peakLocs, neg_peakLocs
+    num_A = 0; num_B = 0;
+    sum_A = 0; sum_B = 0;
+    for ts = 1: length(peakLocs)
+        %detect if there is a negative peak to the left
+        closest_lneg_ind = max(find(neg_peakLocs < peakLocs(ts)));
+        if ~isempty(closest_lneg_ind)
+            sum_A = sum_A + (peakLocs(ts) - neg_peakLocs(closest_lneg_ind));
+            num_A= num_A + 1;
+        end
+        %detect if there is negative peak to the right
+        closest_rneg_ind = min(find(neg_peakLocs > peakLocs(ts)));
+        if ~isempty(closest_rneg_ind)
+            sum_B = sum_B + (neg_peakLocs(closest_rneg_ind) - peakLocs(ts));
+            num_B = num_B + 1;
+        end
+    end
 
-%     segmentA = 25;
-%     segmentB = 25;
-%     segmentStartIdxs = peakLocInds - segmentA;
-%     segmentEndIdxs = peakLocInds + segmentB;
-%     %segmentStartings you have the segment indices.
-%     start_seg = [time_stamps(segmentStartIdxs)];
-%     end_seg = [time_stamps(segmentEndIdxs)];
-% 
-%     for s = 1:length(start_seg)
-%         plot([start_seg(s), start_seg(s)], [-5 6], 'm');
-%     end
-%     for e = 1:length(end_seg)
-%         plot([end_seg(e), end_seg(e)], [-5 6], 'k');
-%     end
+    %take the average of the distances; in ms 
+    segment_A = sum_A/num_A;
+    segment_B = sum_B/num_B;
 
-end
+    segmentStarts = peakLocs - segment_A;
+    segmentEnds = peakLocs + segment_B;
+    %segmentStartings you have the segment indices.
+
+    %plot wavelet signals with the segments 
+    if id(4) == 'A'
+        figure(7); set(gcf, 'name', 'Reconstructed Wavelet');
+        subplot(2, 5, subject);
+        plot(matrix(:, 1), modified_signal); hold on;  
+        for s = 1:length(segmentStarts)
+            plot([segmentStarts(s), segmentStarts(s)], [-5 5], 'm');
+        end
+        for e = 1:length(segmentEnds)
+            if segmentEnds(e) <= matrix(end, 1)
+                plot([segmentEnds(e), segmentEnds(e)], [-5 5], 'k');
+            end
+        end
+        title(strcat('kav',all_subjects(subject)));
+    else
+        figure(8); set(gcf, 'name', 'Reconstructed Wavelet');
+        subplot(2, 3, subject-10);
+        plot(matrix(:, 1), modified_signal); hold on;
+        for s = 1:length(segmentStarts)
+            plot([segmentStarts(s), segmentStarts(s)], [-5 5], 'm');
+        end
+        for e = 1:length(segmentEnds)
+            if segmentEnds(e) <= matrix(end, 1)
+                plot([segmentEnds(e), segmentEnds(e)], [-5 5], 'k');
+            else
+                segmentEnds = segmentEnds(1:e-1);
+            end
+        end
+        title(strcat('kav',all_subjects(subject)));
+    end
+
     
+%     figure;
+%     % plot(matrix(:, 1), modified_signal); hold on;
+% 
+%     plot(matrix(:, 1), matrix(:, 2)); hold on;
+%     for s = 1:length(segmentStarts)
+%         plot([segmentStarts(s), segmentStarts(s)], [-5 6], 'm');
+%     end
+% 
+%     for e = 1:length(segmentEnds)
+%         if segmentEnds(e) <= matrix(end, 1)
+%             plot([segmentEnds(e), segmentEnds(e)], [-5 6], 'k');
+%         end
+%     end
+end
+
+%%
+wt = modwt(matrix(:, 2));
+figure;
+%     analyze individual wavelets from the decomposition
+for a  = 1:length(wt(:, 1)) 
+    subplot(6, 2, a); %m x n plot
+    plot(wt(a, :));
+end
+%take out columns 7-11 for reconstruction
+wtrec = zeros(size(wt));
+wtrec(5:10,:) = wt(5:10, :);
+modified_signal = imodwt(wtrec);  
+
+figure;
+% plot(matrix(:, 1), matrix(:, 2));
+% hold on;
+plot(matrix(:, 1), modified_signal);
+
+
+
 
     %% peak detection - energy or x 
 % %Energy calculation (e.g. for peak detection)
@@ -207,10 +271,7 @@ end
 %segmentation - try finding negative peaks for start and stop of each
 %window 
 
-
 % plot(matrix(:, 1), matrix(:, 3), matrix(:, 1), matrix(:,4));
-
-
 
 %%
 plot(data_acc_nts(:, 1), data_acc_nts_b(:, 2)); plot(data_acc_nts(:, 1), data_acc_nts_b(:, 3));
