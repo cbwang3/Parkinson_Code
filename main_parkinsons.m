@@ -19,6 +19,13 @@ end
 %%
 
 clf;
+%initialize 
+%length_of_segments = zeros(2, length(all_subjects));
+%feature classes 
+featureExtractor = FeatureExtractor();
+nFeatures = featureExtractor.nFeatures;
+featuresClass1 = zeros(1,nFeatures);
+featuresClass2 = zeros(1, nFeatures);
 for subject = 1:length(all_subjects)
     id = char(all_subjects(subject));
     load(strcat('kav',id,'_main.mat'));
@@ -31,20 +38,26 @@ for subject = 1:length(all_subjects)
     data_acc_sm = zeros(size(matrix));
     data_acc_sm(:,2:end) = filter(b,a,matrix(: ,2:end)); %applying filter to all accel data
     %plot parkinsons vs non parkinsons 
+   
 %     if id(4) == 'A'
 %         figure(1); set(gcf, 'name', 'PD Raw and Filtered Signals');
-%         subplot(2, 5, subject);
+%         ha(subject) = subplot(2, 5, subject);
 %         plot(matrix(:,1),data_acc_sm(:, 2),'r');  %matrix(:, 1),matrix(:, 2),'b',      
+%        
 %         title(strcat('kav',all_subjects(subject)));
 %     else
 %         figure(2); set(gcf, 'name', 'non-PD Raw and Filtered Signals');
-%         subplot(2, 3, subject-10);
+%         ha(subject) = subplot(2, 3, subject-10);
 %         plot(matrix(:,1),data_acc_sm(:, 2),'r');  %matrix(:, 1),matrix(:, 2),'b'  
 %         title(strcat('kav',all_subjects(subject)));
+%         
+% %         plot(matrix(:,1), data_acc_sm(:, 4), 'm');
 %     end
+%     linkaxes(ha);
     matrix(:, 2:end) = data_acc_sm(:, 2:end);
-%{
+
 %% spectrograms
+%{
     %plot spectrograms
     frequencyLimits = [0 100]/pi; %Normalized frequency (*pi rad/sample)
     leakage = 0.2;
@@ -98,67 +111,61 @@ for subject = 1:length(all_subjects)
     wtrec(5:10, :) = wt(5:10, :);
     modified_signal = imodwt(wtrec);    
 % 
-    if id(4) == 'A'
-        figure(7); set(gcf, 'name', 'Reconstructed Wavelet');
-        subplot(2, 5, subject);
-        plot(matrix(:, 1), modified_signal); hold on;       
-        title(strcat('kav',all_subjects(subject)));
-    else
-        figure(8); set(gcf, 'name', 'Reconstructed Wavelet');
-        subplot(2, 3, subject-10);
-        plot(matrix(:, 1), modified_signal); hold on;
-        title(strcat('kav',all_subjects(subject)));
-    end
+%     if id(4) == 'A'
+%         figure(7); set(gcf, 'name', 'Reconstructed Wavelet');
+%         subplot(2, 5, subject);
+%         plot(matrix(:, 1), modified_signal); hold on;       
+%         title(strcat('kav',all_subjects(subject)));
+%     else
+%         figure(8); set(gcf, 'name', 'Reconstructed Wavelet');
+%         subplot(2, 3, subject-10);
+%         plot(matrix(:, 1), modified_signal); hold on;
+%         title(strcat('kav',all_subjects(subject)));
+%     end
 
 %% peak detection - energy or x 
+
+    %use peak detection on the modified wavelet signal 
     maxpeak = max(modified_signal);
+    %detect positive peaks
+    %optimization- detect twenty peaks (or more)
     for peakheight = maxpeak:-0.1:0
-        x_plot = matrix(:, 2);
-        [peaks, peakLocInds] = findpeaks(x_plot, 'minPeakHeight', peakheight, 'minPeakDistance', 30);
+        %x_plot = matrix(:, 2);
+        [peaks, peakLocInds] = findpeaks(modified_signal, 'minPeakHeight', peakheight, 'minPeakDistance', 30);
         if length(peaks)>=20
-            length(peaks)
+            length(peaks);
             break
         end
     end
-    
     time_stamps = matrix(:, 1);
-    figure;
-    plot(matrix(:, 1), x_plot);
-    hold on;
-    peakLocs = time_stamps(peakLocInds);
-    plot(peakLocs, peaks, 'r.');
-
-    %detect positive peaks
-    [peaks, peakLocInds] = findpeaks(modified_signal, 'minPeakHeight', 0.6, 'minPeakDistance', 30);
-    time_stamps = matrix(:, 1);
-    peakLocs = time_stamps(peakLocInds);
+    peakLocs = time_stamps(peakLocInds); %peakLocs are actual time stamps where peaks occurred
     
     %detect negative peaks
     [neg_peaks, neg_peakLocInds] = findpeaks(-modified_signal, 'minPeakHeight', 0.6, 'minPeakDistance', 30);
     neg_peakLocs = time_stamps(neg_peakLocInds);
     neg_peaks = -neg_peaks;
     
-    if id(4) == 'A'
-        figure(7); 
-        hold on;
-        subplot(2, 5, subject);
-        plot(peakLocs, peaks, 'r.');  
-        hold on; plot(neg_peakLocs, neg_peaks, 'k.');
-    else
-        figure(8); 
-        hold on;
-        subplot(2, 3, subject-10);
-        plot(peakLocs, peaks, 'r.'); 
-        hold on; plot(neg_peakLocs, neg_peaks, 'k.');
-    end
-
+%     %mark peaks on the wavelet signals 
+%     if id(4) == 'A'
+%         figure(7); 
+%         hold on;
+%         subplot(2, 5, subject);
+%         plot(peakLocs, peaks, 'r.');  
+%         hold on; plot(neg_peakLocs, neg_peaks, 'k.');
+%     else
+%         figure(8); 
+%         hold on;
+%         subplot(2, 3, subject-10);
+%         plot(peakLocs, peaks, 'r.'); 
+%         hold on; plot(neg_peakLocs, neg_peaks, 'k.');
+%     end
 %% segmentation
 % loop to calculate the distances of the negative peaks from each positve
 %peak
 %timestamps: peakLocs, neg_peakLocs
     num_A = 0; num_B = 0;
-    sum_A = 0; sum_B = 0;
-    for ts = 1: length(peakLocs)
+    sum_A = 0; sum_B = 0; %running sum of differences of time stamp indices
+    for ts = 1: length(peakLocInds)
         %detect if there is a negative peak to the left
         closest_lneg_ind = max(find(neg_peakLocs < peakLocs(ts)));
         if ~isempty(closest_lneg_ind)
@@ -173,61 +180,99 @@ for subject = 1:length(all_subjects)
         end
     end
 
-    %take the average of the distances; in ms 
-    segment_A = sum_A/num_A;
-    segment_B = sum_B/num_B;
-
-    segmentStarts = peakLocs - segment_A;
-    segmentEnds = peakLocs + segment_B;
-    %segmentStartings you have the segment indices.
-
-    %plot wavelet signals with the segments 
-    if id(4) == 'A'
-        figure(7); set(gcf, 'name', 'Reconstructed Wavelet');
-        subplot(2, 5, subject);
-        plot(matrix(:, 1), modified_signal); hold on;  
-        for s = 1:length(segmentStarts)
-            plot([segmentStarts(s), segmentStarts(s)], [-5 5], 'm');
-        end
-        for e = 1:length(segmentEnds)
-            if segmentEnds(e) <= matrix(end, 1)
-                plot([segmentEnds(e), segmentEnds(e)], [-5 5], 'k');
-            end
-        end
-        title(strcat('kav',all_subjects(subject)));
-    else
-        figure(8); set(gcf, 'name', 'Reconstructed Wavelet');
-        subplot(2, 3, subject-10);
-        plot(matrix(:, 1), modified_signal); hold on;
-        for s = 1:length(segmentStarts)
-            plot([segmentStarts(s), segmentStarts(s)], [-5 5], 'm');
-        end
-        for e = 1:length(segmentEnds)
-            if segmentEnds(e) <= matrix(end, 1)
-                plot([segmentEnds(e), segmentEnds(e)], [-5 5], 'k');
-            else
-                segmentEnds = segmentEnds(1:e-1);
-            end
-        end
-        title(strcat('kav',all_subjects(subject)));
-    end
-
+    %take the average of the distances; by index of timestamp 
+    segment_A = floor(sum_A/(10*num_A)) * 10;
+    segment_B = floor(sum_B/(10*num_B)) * 10;
     
-%     figure;
-%     % plot(matrix(:, 1), modified_signal); hold on;
-% 
-%     plot(matrix(:, 1), matrix(:, 2)); hold on;
-%     for s = 1:length(segmentStarts)
-%         plot([segmentStarts(s), segmentStarts(s)], [-5 6], 'm');
-%     end
-% 
-%     for e = 1:length(segmentEnds)
-%         if segmentEnds(e) <= matrix(end, 1)
-%             plot([segmentEnds(e), segmentEnds(e)], [-5 6], 'k');
+    segmentStarts = peakLocs - segment_A; %indices
+%     length_of_segments(1 ,subject) = length(segmentStarts);
+    segmentEnds = peakLocs + segment_B;
+%     length_of_segments(2, subject) = length(segmentEnds);
+    %segmentStartings you have the segment indices.
+   
+    %plot original filtered signals with the segments 
+%     if id(4) == 'A'
+%         figure(7); hold on;
+%         subplot(2, 5, subject);
+%         
+%         %plot(matrix(:, 1), modified_signal); hold on;  
+%         for s = 1:length(segmentStarts)
+%             plot([segmentStarts(s), segmentStarts(s)], [-10 10], 'm');
 %         end
+%         for e = 1:length(segmentEnds)
+%             if segmentEnds(e) <= matrix(end, 1)
+%                 plot([segmentEnds(e), segmentEnds(e)], [-10 10], 'k');
+%             else
+%                 segmentEnds = segmentEnds(1:e-1);
+%             end
+%         end
+%         title(strcat('kav',all_subjects(subject)));
+%     else
+%         figure(8); hold on;
+%         subplot(2, 3, subject-10);
+%         %plot(matrix(:, 1), modified_signal); hold on;
+%         for s = 1:length(segmentStarts)
+%             plot([segmentStarts(s), segmentStarts(s)], [-10 10], 'm');
+%         end
+%         for e = 1:length(segmentEnds)
+%             if segmentEnds(e) <= matrix(end,1)
+%                 plot([segmentEnds(e), segmentEnds(e)], [-10 10], 'k');
+%             else
+%                 segmentEnds = segmentEnds(1:e-1);
+%             end
+%         end
+%         title(strcat('kav',all_subjects(subject)));
 %     end
+    
+%% Feature Extraction
+    %min, max of segment
+    fc1 = []; fc2 = [];
+    for i = 1 : length(segmentStarts)
+        start_ts = segmentStarts(i);
+        
+        end_ts = segmentEnds(i);
+        if end_ts > matrix(end, 1)
+            continue
+        end 
+        start_idx = find(matrix(:, 1) == start_ts);
+        end_idx = find(matrix(:, 1) == end_ts);
+        segment = matrix(start_idx:end_idx, 1:end);
+        [featureVector] = featureExtractor.extractFeaturesForSegment(segment); %%can't get class to work
+        if id(4) == 'A'
+            fc1(i,:) = featureVector;
+        else
+            fc2(i, :) = featureVector;
+        end
+    end
+    size(fc1)
+    size(fc2)
+    featuresClass1 = [featuresClass1; fc1];
+    featuresClass2 = [featuresClass2; fc2];
+    %Note: you could save the features using the save command for faster
+    %loading next time
+   
 end
 
+%%
+featuresClass1(:,nFeatures+1) = 1;%label every feature vector with a 1
+featuresClass2(:, nFeatures+1) = 0;
+
+trainTable = array2table([featuresClass1; featuresClass2]);
+trainTable.Properties.VariableNames = [featureExtractor.featureNames, 'label'];
+trainTable = trainTable(~any(ismissing(trainTable),2),:);
+
+%% Normalize features
+dataNormalizer = DataNormalizer();
+dataNormalizer.fit(trainTable);
+trainTable = dataNormalizer.normalize(trainTable);
+
+%% Feature Selection
+nFeatures = 10;
+featureSelector = FeatureSelector(); 
+bestFeatues = featureSelector.findBestFeatures(trainTable,nFeatures);
+trainTable = featureSelector.selectFeatures(trainTable,bestFeatues);
+
+%%
 %%
 wt = modwt(matrix(:, 2));
 figure;
@@ -245,9 +290,6 @@ figure;
 % plot(matrix(:, 1), matrix(:, 2));
 % hold on;
 plot(matrix(:, 1), modified_signal);
-
-
-
 
     %% peak detection - energy or x 
 % %Energy calculation (e.g. for peak detection)
@@ -272,6 +314,25 @@ plot(matrix(:, 1), modified_signal);
 %window 
 
 % plot(matrix(:, 1), matrix(:, 3), matrix(:, 1), matrix(:,4));
+
+%% Feature Extraction
+
+featureExtractor = FeatureExtractor();
+nFeatures = featureExtractor.nFeatures;
+featuresClass1 = zeros(length(segmentStarts),nFeatures);
+
+%min, max of segment
+for i = 1 : length(segmentStarts)
+    start_ts = segmentStarts(i);
+    end_ts = segmentEnds(i);
+    start_idx = find(matrix(:, 1) == start_ts);
+    end_idx = find(matrix(:, 1) == end_ts);
+    segment = matrix(start_idx:end_idx, 1:end);
+    [featureVector] = featureExtractor.extractFeaturesForSegment(segment); %%can't get class to work
+    featuresClass1(i,:) = featureVector;
+end
+
+%% 
 
 %%
 plot(data_acc_nts(:, 1), data_acc_nts_b(:, 2)); plot(data_acc_nts(:, 1), data_acc_nts_b(:, 3));
