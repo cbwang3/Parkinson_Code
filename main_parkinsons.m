@@ -24,8 +24,8 @@ clf;
 %feature classes 
 featureExtractor = FeatureExtractor();
 nFeatures = featureExtractor.nFeatures;
-featuresClass1 = zeros(1,nFeatures);
-featuresClass2 = zeros(1, nFeatures);
+PD_class = zeros(1,nFeatures);
+nonPD_class = zeros(1, nFeatures);
 for subject = 1:length(all_subjects)
     id = char(all_subjects(subject));
     load(strcat('kav',id,'_main.mat'));
@@ -237,42 +237,85 @@ for subject = 1:length(all_subjects)
         start_idx = find(matrix(:, 1) == start_ts);
         end_idx = find(matrix(:, 1) == end_ts);
         segment = matrix(start_idx:end_idx, 1:end);
+
         [featureVector] = featureExtractor.extractFeaturesForSegment(segment); %%can't get class to work
         if id(4) == 'A'
             fc1(i,:) = featureVector;
         else
             fc2(i, :) = featureVector;
         end
+        
     end
     size(fc1)
     size(fc2)
-    featuresClass1 = [featuresClass1; fc1];
-    featuresClass2 = [featuresClass2; fc2];
+    PD_class = [PD_class; fc1];
+    nonPD_class = [nonPD_class; fc2];
     %Note: you could save the features using the save command for faster
     %loading next time
    
 end
 
-%%
-featuresClass1(:,nFeatures+1) = 1;%label every feature vector with a 1
-featuresClass2(:, nFeatures+1) = 0;
+%% Merge feature tables
+PD_class(:,nFeatures+1) = 1;%label every feature vector with a 1 to indicate a parkinson's subject
+nonPD_class(:, nFeatures+1) = 0; %label every feature vector with a 0 to indicate a non-pd subject
 
-trainTable = array2table([featuresClass1; featuresClass2]);
-trainTable.Properties.VariableNames = [featureExtractor.featureNames, 'label'];
-trainTable = trainTable(~any(ismissing(trainTable),2),:);
+
+%%
+allTable = array2table([PD_class; nonPD_class]);
+allTable.Properties.VariableNames = [featureExtractor.featureNames, 'label'];
+allTable = allTable(~any(ismissing(allTable),2),:);
 
 %% Normalize features
 dataNormalizer = DataNormalizer();
-dataNormalizer.fit(trainTable);
-trainTable = dataNormalizer.normalize(trainTable);
+dataNormalizer.fit(allTable);
+allTable = dataNormalizer.normalize(allTable);
 
 %% Feature Selection
 nFeatures = 10;
 featureSelector = FeatureSelector(); 
-bestFeatues = featureSelector.findBestFeatures(trainTable,nFeatures);
-trainTable = featureSelector.selectFeatures(trainTable,bestFeatues);
+bestFeatures = featureSelector.findBestFeatures(allTable,nFeatures);
+allTable = featureSelector.selectFeatures(allTable,bestFeatures);
 
-%%
+%% take out samples for testing data
+allArray = table2array(allTable);
+percent_test = .20; %20% test, 80% training
+test_PD_samples = randperm(size(PD_class, 1),floor(percent_test*size(PD_class, 1)));
+
+test_PD_class = allArray([test_PD_samples], :);
+PD_class_indices = [1: size(PD_class, 1)];
+train_PD_class= allArray(setdiff(PD_class_indices, test_PD_samples), :);
+
+test_nonPD_samples = randperm(size(nonPD_class, 1),floor(percent_test*size(nonPD_class, 1)));
+
+test_nonPD_class = allArray(size(PD_class, 1) + [test_nonPD_samples], :);
+nonPD_class_indices = [1: size(nonPD_class, 1)];
+train_nonPD_class= allArray(size(PD_class, 1) + setdiff(nonPD_class_indices, test_nonPD_samples), :);
+
+trainTable = array2table([train_PD_class; train_nonPD_class]);
+%% Train Classifier
+%this classifiers uses a predefined algorithm (SVM) with a polynomial
+%kernel
+trainer = Trainer();
+trainer.train(trainTable);
+
+%% Test Classifier
+test_PD_class; test_nonPD_class;
+testTable = array2table([test_PD_class; test_nonPD_class]);
+testTable.Properties.VariableNames = trainTable.Properties.VariableNames;
+labels = trainer.test(testTable);
+shouldBeLabels = testTable(:,end);
+
+%compare labels to shouldBeLabels to get you accuracy
+
+%to test further algorithms, open the Classification Learner Tool in the
+%Matlab-Toolbox and select the variable 'table'
+
+
+%% Plot Results
+plotter = Plotter();
+confusionMatrix = confusionmat(table2array(shouldBeLabels),labels);
+plotter.plotConfusionMatrix(confusionMatrix,["Parkinsons","non-Parkinsons"]);
+
 %%
 wt = modwt(matrix(:, 2));
 figure;
@@ -319,7 +362,7 @@ plot(matrix(:, 1), modified_signal);
 
 featureExtractor = FeatureExtractor();
 nFeatures = featureExtractor.nFeatures;
-featuresClass1 = zeros(length(segmentStarts),nFeatures);
+PD_class = zeros(length(segmentStarts),nFeatures);
 
 %min, max of segment
 for i = 1 : length(segmentStarts)
@@ -329,7 +372,7 @@ for i = 1 : length(segmentStarts)
     end_idx = find(matrix(:, 1) == end_ts);
     segment = matrix(start_idx:end_idx, 1:end);
     [featureVector] = featureExtractor.extractFeaturesForSegment(segment); %%can't get class to work
-    featuresClass1(i,:) = featureVector;
+    PD_class(i,:) = featureVector;
 end
 
 %% 
