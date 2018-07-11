@@ -3,7 +3,7 @@
 
 %% main_parkinsons
 %Nx7 matrices, saved by ID
-all_subjects = ["001A", "002A","004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A",  "031B", "079B", "111B", "211B", "121B", "221B"]';
+all_subjects = ["001A", "002A", "004A", "010A", "115A", "118A", "120A", "215A", "218A", "220A",  "031B", "079B", "111B", "211B", "121B", "221B"]';
 
 %% loading data, only have to use once
 for subject = 1:length(all_subjects)
@@ -16,9 +16,10 @@ for subject = 1:length(all_subjects)
 end
 %figure;
 
-%%
 
+%% 
 clf;
+
 %initialize 
 %length_of_segments = zeros(2, length(all_subjects));
 %feature classes 
@@ -26,10 +27,15 @@ featureExtractor = FeatureExtractor();
 nFeatures = featureExtractor.nFeatures;
 PD_class = zeros(1,nFeatures);
 nonPD_class = zeros(1, nFeatures);
+num_strides = 1;
+strides_per_subj = [1]; %keeps indicies of each subjects' strides in allTable
 for subject = 1:length(all_subjects)
     id = char(all_subjects(subject));
     load(strcat('kav',id,'_main.mat'));
-
+    
+%     if id == "031B"
+%         
+%     
 % apply low pass filter to smooth data
     sfq = 100; %sampling frequency in Hz
     cfq =10; %cutoff frequency in Hz
@@ -39,21 +45,21 @@ for subject = 1:length(all_subjects)
     data_acc_sm(:,2:end) = filter(b,a,matrix(: ,2:end)); %applying filter to all accel data
     %plot parkinsons vs non parkinsons 
    
-%     if id(4) == 'A'
-%         figure(1); set(gcf, 'name', 'PD Raw and Filtered Signals');
-%         ha(subject) = subplot(2, 5, subject);
-%         plot(matrix(:,1),data_acc_sm(:, 2),'r');  %matrix(:, 1),matrix(:, 2),'b',      
-%        
-%         title(strcat('kav',all_subjects(subject)));
-%     else
-%         figure(2); set(gcf, 'name', 'non-PD Raw and Filtered Signals');
-%         ha(subject) = subplot(2, 3, subject-10);
-%         plot(matrix(:,1),data_acc_sm(:, 2),'r');  %matrix(:, 1),matrix(:, 2),'b'  
-%         title(strcat('kav',all_subjects(subject)));
-%         
-% %         plot(matrix(:,1), data_acc_sm(:, 4), 'm');
-%     end
-%     linkaxes(ha);
+    if id(4) == 'A'
+        figure(1); set(gcf, 'name', 'PD Raw and Filtered Signals');
+        ha(subject) = subplot(2, 5, subject);
+        plot(matrix(:,1),data_acc_sm(:, 3),'r');  %matrix(:, 1),matrix(:, 2),'b',      
+       
+        title(strcat('kav',all_subjects(subject)));
+    else
+        figure(2); set(gcf, 'name', 'non-PD Raw and Filtered Signals');
+        ha(subject) = subplot(2, 3, subject-10);
+        plot(matrix(:,1),data_acc_sm(:, 3),'r');  %matrix(:, 1),matrix(:, 2),'b'  
+        title(strcat('kav',all_subjects(subject)));
+        
+%         plot(matrix(:,1), data_acc_sm(:, 4), 'm');
+    end
+    linkaxes(ha);
     matrix(:, 2:end) = data_acc_sm(:, 2:end);
 
 %% spectrograms
@@ -99,6 +105,7 @@ for subject = 1:length(all_subjects)
     end
 %}
 %% wavelet transformation - for easier detection of peaks
+%{
     wt = modwt(matrix(:, 2));
 %     figure;
 % %     analyze individual wavelets from the decomposition
@@ -189,7 +196,22 @@ for subject = 1:length(all_subjects)
     segmentEnds = peakLocs + segment_B;
 %     length_of_segments(2, subject) = length(segmentEnds);
     %segmentStartings you have the segment indices.
-   
+   if subject == 2
+       figure;
+       plot(matrix(:, 1), matrix(:, 2)); hold on;  
+       for s = 1:length(segmentStarts)
+            plot([segmentStarts(s), segmentStarts(s)], [-10 10], 'm');
+            
+       end
+       for e = 1:length(segmentEnds)
+            if segmentEnds(e) <= matrix(end, 1)
+                plot([segmentEnds(e), segmentEnds(e)], [-10 10], 'm');
+            else
+                segmentEnds = segmentEnds(1:e-1);
+            end
+       end
+   end
+       
     %plot original filtered signals with the segments 
 %     if id(4) == 'A'
 %         figure(7); hold on;
@@ -226,11 +248,13 @@ for subject = 1:length(all_subjects)
     
 %% Feature Extraction
     %min, max of segment
-    fc1 = []; fc2 = [];
-    for i = 1 : length(segmentStarts)
+    %keep an array of data sample we are currently workig with
+    fc1 = []; fc2 = [];%keeps count of #strides/patient
+    
+    for i = 1 : length(segmentEnds)
         start_ts = segmentStarts(i);
-        
         end_ts = segmentEnds(i);
+        
         if end_ts > matrix(end, 1)
             continue
         end 
@@ -245,14 +269,15 @@ for subject = 1:length(all_subjects)
             fc2(i, :) = featureVector;
         end
         
+        num_strides = num_strides + 1;
     end
-    size(fc1)
-    size(fc2)
+
+    strides_per_subj = [strides_per_subj num_strides];
     PD_class = [PD_class; fc1];
     nonPD_class = [nonPD_class; fc2];
     %Note: you could save the features using the save command for faster
     %loading next time
-   
+    %}
 end
 
 %% Merge feature tables
@@ -278,6 +303,8 @@ allTable = featureSelector.selectFeatures(allTable,bestFeatures);
 
 %% take out samples for testing data
 allArray = table2array(allTable);
+%% 1st option: randomized. To use this, must take code out from the for loop to train and test the classifier
+
 percent_test = .20; %20% test, 80% training
 test_PD_samples = randperm(size(PD_class, 1),floor(percent_test*size(PD_class, 1)));
 
@@ -292,31 +319,63 @@ nonPD_class_indices = [1: size(nonPD_class, 1)];
 train_nonPD_class= allArray(size(PD_class, 1) + setdiff(nonPD_class_indices, test_nonPD_samples), :);
 
 trainTable = array2table([train_PD_class; train_nonPD_class]);
-%% Train Classifier
-%this classifiers uses a predefined algorithm (SVM) with a polynomial
-%kernel
-trainer = Trainer();
-trainer.train(trainTable);
-
-%% Test Classifier
-test_PD_class; test_nonPD_class;
 testTable = array2table([test_PD_class; test_nonPD_class]);
-testTable.Properties.VariableNames = trainTable.Properties.VariableNames;
-labels = trainer.test(testTable);
-shouldBeLabels = testTable(:,end);
 
-%compare labels to shouldBeLabels to get you accuracy
+%% 2nd option: leave one subject out validation (going through all subjects).
+for xtimes = 1:length(all_subjects)
+    %% leave one out validation
+    %choose a patient's test to leave out from strides_per_subj
+    patient_i = xtimes;
+    %leave strides from stride_per_subj(patient_i) to stride_per_subj(patient_i
+    %+ 1)
+    start_test = strides_per_subj(patient_i);
+    end_test = strides_per_subj(patient_i + 1);
+    test_samples = allArray(start_test+1:end_test, :);
 
-%to test further algorithms, open the Classification Learner Tool in the
-%Matlab-Toolbox and select the variable 'table'
+    if start_test ~= 1 && end_test ~= length(allArray)
+        train_samples = allArray([1:start_test-1, end_test+1:end], :);
+    elseif start_test == 1
+        train_samples = allArray(end_test+1:end, :);
+    elseif end_test == length(allArray)
+        train_samples = allArray(1:start_test-1, :);
+    end
+
+    trainTable = array2table(train_samples); testTable= array2table(test_samples);
+    %% Train Classifier
+    %this classifiers uses a predefined algorithm (SVM) with a polynomial
+    %kernel
+
+    %do own SVM training
+    % svm_class_model = fitcsvm(trainTable(:, 1:end-1), trainTable(:, end));
+
+    trainer = Trainer();
+    [beta_vals, bias] = trainer.trainSVM(trainTable);
+    %svm is sign(beta_vals*matrix + bias);
+
+    %% Test Classifier
+
+    % [label,score] = predict(svm_class_model,testTable(:, 1:end-1));
+    testTable.Properties.VariableNames = trainTable.Properties.VariableNames;
+    labels = trainer.test(testTable);
+
+    shouldBeLabels = table2array(testTable(:,end));
+
+    %compare labels to shouldBeLabels to get you accuracy
+
+    %to test further algorithms, open the Classification Learner Tool in the
+    %Matlab-Toolbox and select the variable 'table'
 
 
-%% Plot Results
-plotter = Plotter();
-confusionMatrix = confusionmat(table2array(shouldBeLabels),labels);
-plotter.plotConfusionMatrix(confusionMatrix,["Parkinsons","non-Parkinsons"]);
+    %% Plot Results
+    plotter = Plotter();
+    confusionMatrix = confusionmat(shouldBeLabels,labels);
+    plotter.plotConfusionMatrix(confusionMatrix,["non-Parkinsons","Parkinsons"]);
+end
 
-%%
+
+
+%% IGNORE THE FOLLOWING SECTIONS
+%{
 wt = modwt(matrix(:, 2));
 figure;
 %     analyze individual wavelets from the decomposition
@@ -375,24 +434,36 @@ for i = 1 : length(segmentStarts)
     PD_class(i,:) = featureVector;
 end
 
-%% 
 
-%%
-plot(data_acc_nts(:, 1), data_acc_nts_b(:, 2)); plot(data_acc_nts(:, 1), data_acc_nts_b(:, 3));
-title("Filtered Accelerometer Data w/ Wavelet");
-xlabel("m/s^2");
-ylabel("Time Stamp (ms)");
-legend('x', 'y', 'z');
-hold off;
+%% segmentation
+% loop to calculate the distances of the negative peaks from each positve
+%peak
+%timestamps: peakLocs, neg_peakLocs
+    num_A = 0; num_B = 0;
+    sum_A = 0; sum_B = 0; %running sum of differences of time stamp indices
+    for ts = 1: length(peakLocInds)
+        %detect if there is a negative peak to the left
+        closest_lneg_ind = max(find(neg_peakLocs < peakLocs(ts)));
+        if ~isempty(closest_lneg_ind)
+            sum_A = sum_A + (peakLocs(ts) - neg_peakLocs(closest_lneg_ind));
+            num_A= num_A + 1;
+        end
+        %detect if there is negative peak to the right
+        closest_rneg_ind = min(find(neg_peakLocs > peakLocs(ts)));
+        if ~isempty(closest_rneg_ind)
+            sum_B = sum_B + (neg_peakLocs(closest_rneg_ind) - peakLocs(ts));
+            num_B = num_B + 1;
+        end
+    end
 
-
-
-% if id(4) == 'A'
-%     figure(5); subplot(2, 5, subject);
-%     plot(matrix(:, 1),modified_signal);
-% else
-%     figure(6); subplot(2, 3, subject-10);
-%     plot(matrix(:, 1),modified_signal);
-% end
-
-
+    %take the average of the distances; by index of timestamp 
+    segment_A = floor(sum_A/(10*num_A)) * 10;
+    segment_B = floor(sum_B/(10*num_B)) * 10;
+    
+    segmentStarts = peakLocs - segment_A; %indices
+%     length_of_segments(1 ,subject) = length(segmentStarts);
+    segmentEnds = peakLocs + segment_B;
+%     length_of_segments(2, subject) = length(segmentEnds);
+    %segmentStartings you have the segment indices.
+   
+%}
